@@ -1,0 +1,147 @@
+# === CELLULE 1 - CONFIGURATION DU WATERMARK (exécuter une fois) ===
+
+!apt-get update -y
+!apt-get install -y ffmpeg
+
+from google.colab import files
+import os
+from PIL import Image, ImageDraw, ImageFont
+
+print("🎨 CONFIGURATION DU WATERMARK ANIMÉ")
+
+def create_default_watermark():
+    """Crée un watermark SORA animé par défaut (GIF)"""
+    print("🔄 Création d'un GIF animé SORA par défaut...")
+
+    # Créer plusieurs frames pour l'animation
+    frames = []
+    for i in range(8):
+        img = Image.new('RGBA', (200, 80), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Effet de pulsation
+        size_pulse = 30 + (i % 4) * 5
+        opacity_pulse = 120 + (i % 4) * 35
+
+        draw.text((20, 20), "SORA",
+                 fill=(255, 255, 255, opacity_pulse),
+                 font=ImageFont.load_default())
+
+        frames.append(img)
+
+    # Sauvegarder en GIF animé
+    frames[0].save('watermark.gif',
+                  save_all=True,
+                  append_images=frames[1:],
+                  duration=150,  # 150ms entre frames
+                  loop=0,        # boucle infinie
+                  transparency=0)
+
+    print("✅ Watermark GIF animé 'watermark.gif' créé!")
+    return "watermark.gif"
+
+def upload_custom_watermark():
+    """Upload un watermark animé (GIF/MP4) ou image"""
+    print("📤 Upload ton watermark animé:")
+    print("   • 🎬 GIF animé (recommandé)")
+    print("   • 🎥 Vidéo MP4/MOV")
+    print("   • 🖼️ Image PNG/JPG")
+    print("")
+    print("👉 Clique sur 'Choose Files' pour sélectionner ton fichier")
+
+    uploaded = files.upload()
+
+    if uploaded:
+        custom_filename = list(uploaded.keys())[0]
+
+        # Garder l'extension originale
+        file_extension = os.path.splitext(custom_filename)[1].lower()
+        new_filename = f"watermark{file_extension}"
+
+        os.rename(custom_filename, new_filename)
+        print(f"✅ Watermark sauvegardé: {new_filename}")
+
+        # Vérifier le type de fichier
+        if file_extension in ['.gif', '.mp4', '.mov', '.avi']:
+            print("🎬 Watermark animé détecté - L'animation sera préservée!")
+        else:
+            print("🖼️ Image statique détecté")
+
+        return new_filename
+    else:
+        print("❌ Aucun fichier uploadé, utilisation du watermark par défaut")
+        return create_default_watermark()
+
+# ==========================================
+# 🚀 EXÉCUTION PRINCIPALE
+# ==========================================
+print("=" * 50)
+print("🔘 CHOIX DU WATERMARK:")
+print("1. ✅ Utiliser le watermark SORA animé (GIF par défaut)")
+print("2. 📤 Uploader mon propre GIF/vidéo/image")
+print("")
+
+# Choix automatique pour Colab (pas d'input())
+print("👉 Sélection automatique: Option 2 (Upload)")
+watermark_filename_global = upload_custom_watermark()
+
+print("=" * 50)
+print(f"🎯 Fichier watermark sélectionné: {watermark_filename_global}")
+print("✅ Configuration terminée! Tu peux maintenant traiter des vidéos.")
+
+# === CELLULE 2 - VERSION 1 : STABLE ET PRÉVISIBLE ===
+
+from google.colab import files
+import os
+import time
+
+def process_video_with_watermark(watermark_filename):
+    print("📤 Upload une nouvelle vidéo à traiter")
+    print("👉 Clique sur 'Choose Files' pour sélectionner ta vidéo")
+
+    uploaded_video = files.upload()
+
+    if not uploaded_video:
+        print("❌ Aucune vidéo uploadée")
+        return
+
+    video_filename = list(uploaded_video.keys())[0]
+    quoted_video_filename = f'"{video_filename}"'
+    output_filename = f"output_{int(time.time())}.mp4"
+
+    print(f"🎥 Traitement de: {video_filename}")
+    print("⏳ Application du filigrane (positions coins + 1.8s visible)...") # Updated description
+
+    quoted_watermark_filename = f'"{watermark_filename}"'
+
+    # POSITIONS AUX COINS + DURÉE 1.8s PAR POSITION
+    # Corrected x and y expressions using nested if statements
+    !ffmpeg -i {quoted_video_filename} -i {quoted_watermark_filename} \
+    -filter_complex "\
+    [1:v]scale=120:-1,format=rgba,loop=-1:size=300[wm_loop]; \
+    [0:v][wm_loop]overlay=\
+x='if(lt(mod(t,6),2), 30, if(lt(mod(t,6),4), main_w-overlay_w-30, 30))':\
+y='if(lt(mod(t,6),2), 30, if(lt(mod(t,6),4), main_h*0.4, main_h-overlay_h-30))':\
+enable='between(mod(t,6),0.1,1.9)+between(mod(t,6),2.1,3.9)+between(mod(t,6),4.1,5.9)':\
+shortest=1" \
+    -c:a copy "{output_filename}" -y
+
+    if os.path.exists(output_filename):
+        files.download(output_filename)
+        print(f"✅ SUCCÈS! {output_filename} téléchargé")
+        print("🎯 Positions COINS :")
+        print("   • A : Haut-gauche (30, 30)")
+        print("   • B : Haut-droit (W-iw-30, H*0.4)") # Updated description
+        print("   • C : Bas-gauche (30, H-ih-30)") # Using H-ih-30 for description consistency with user
+        print("💫 Visible : 1.8s par position (fondus 0.1s)")
+        print("⏱️  Cycle : 6 secondes")
+
+        os.remove(video_filename)
+        print("🧹 Fichier temporaire nettoyé")
+    else:
+        print("❌ Échec du traitement")
+
+try:
+    process_video_with_watermark(watermark_filename_global)
+except NameError:
+    print("❌ Erreur: Veuillez exécuter la première cellule pour configurer le watermark avant de traiter la vidéo.")
